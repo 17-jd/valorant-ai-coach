@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { ElectronAPI } from '../../preload/preload';
-import type {
-  AppSettings,
-  CaptureMode,
-  OutputMode,
-  DisplayMode,
-  SessionStats,
-} from '../../shared/types';
+import type { AppSettings, CaptureMode, SessionStats } from '../../shared/types';
 import { DEFAULT_SETTINGS } from '../../shared/types';
 
 declare global {
@@ -19,17 +13,6 @@ const CAPTURE_MODES: { id: CaptureMode; name: string; cost: string }[] = [
   { id: 'every-5s', name: 'Every 5 seconds', cost: '~$1.30/hr — Real-time coaching' },
   { id: 'every-10s', name: 'Every 10 seconds', cost: '~$0.65/hr — Balanced (Recommended)' },
   { id: 'on-death-only', name: 'On death only', cost: '~$0.03/hr — Budget friendly' },
-];
-
-const OUTPUT_MODES: { id: OutputMode; label: string }[] = [
-  { id: 'overlay', label: 'Overlay' },
-  { id: 'tts', label: 'Voice (TTS)' },
-  { id: 'both', label: 'Both' },
-];
-
-const DISPLAY_MODES: { id: DisplayMode; label: string }[] = [
-  { id: 'overlay', label: 'Game Overlay' },
-  { id: 'separate-window', label: 'Separate Window' },
 ];
 
 export default function App() {
@@ -57,7 +40,6 @@ export default function App() {
     };
   }, []);
 
-  // Periodically fetch session stats while running
   useEffect(() => {
     if (!isRunning) return;
     const interval = setInterval(async () => {
@@ -67,27 +49,23 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isRunning]);
 
-  const updateSetting = useCallback(
-    async (partial: Partial<AppSettings>) => {
-      const updated = await window.api.updateSettings(partial);
-      setSettings(updated as AppSettings);
-    },
-    []
-  );
+  const updateSetting = useCallback(async (partial: Partial<AppSettings>) => {
+    const updated = await window.api.updateSettings(partial);
+    setSettings(updated as AppSettings);
+  }, []);
 
   const handleTestApiKey = async () => {
     setApiTestResult('testing');
     const ok = await window.api.testApiKey(apiKeyInput);
     setApiTestResult(ok ? 'success' : 'error');
-    if (ok) {
-      updateSetting({ geminiApiKey: apiKeyInput });
-    }
+    if (ok) updateSetting({ geminiApiKey: apiKeyInput });
   };
 
   const handleStart = async () => {
     try {
       await window.api.startSession();
       setIsRunning(true);
+      setStatus('listening');
     } catch (e) {
       alert(`Failed to start: ${e instanceof Error ? e.message : e}`);
     }
@@ -96,6 +74,7 @@ export default function App() {
   const handleStop = async () => {
     const stats = await window.api.stopSession();
     setIsRunning(false);
+    setStatus('idle');
     if (stats) setSessionStats(stats as SessionStats);
   };
 
@@ -104,14 +83,21 @@ export default function App() {
     alert('Calibration complete! HUD reference pixels saved.');
   };
 
-  const budgetPercent = Math.min(
-    (settings.totalSpent / settings.totalBudget) * 100,
-    100
-  );
+  const handleTestCapture = async () => {
+    setStatus('testing capture...');
+    const result = await window.api.testCapture();
+    if (result.ok) {
+      alert(`✓ Capture works!\n\nGemini said:\n${result.tip}`);
+    } else {
+      alert(`✗ Capture failed:\n${result.error}`);
+    }
+    setStatus('idle');
+  };
+
+  const budgetPercent = Math.min((settings.totalSpent / settings.totalBudget) * 100, 100);
 
   return (
     <div className="app">
-      {/* Header */}
       <div className="header">
         <h1>Valorant AI Coach</h1>
         <span className={`status-badge ${isRunning ? 'running' : 'idle'}`}>
@@ -143,41 +129,9 @@ export default function App() {
               </label>
             ))}
           </div>
-        </div>
-
-        {/* Output Mode */}
-        <div className="card">
-          <h2>Output Mode</h2>
-          <div className="toggle-group">
-            {OUTPUT_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                className={`toggle-btn ${settings.outputMode === mode.id ? 'active' : ''}`}
-                onClick={() => updateSetting({ outputMode: mode.id })}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-
-          <h2 style={{ marginTop: 20 }}>Display Mode</h2>
-          <div className="display-toggle">
-            {DISPLAY_MODES.map((mode) => (
-              <button
-                key={mode.id}
-                className={`toggle-btn ${settings.displayMode === mode.id ? 'active' : ''}`}
-                onClick={() => updateSetting({ displayMode: mode.id })}
-                disabled={isRunning}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-          {settings.displayMode === 'overlay' && (
-            <p style={{ fontSize: 12, color: '#768b9e', marginTop: 8 }}>
-              Requires Valorant in Borderless Windowed mode
-            </p>
-          )}
+          <p style={{ fontSize: 12, color: '#768b9e', marginTop: 10 }}>
+            On death: last 5 screenshots sent to AI for detailed analysis
+          </p>
         </div>
 
         {/* API Key */}
@@ -202,92 +156,12 @@ export default function App() {
           )}
         </div>
 
-        {/* Overlay Settings */}
-        <div className="card">
-          <h2>Overlay Settings</h2>
-          <div className="slider-group">
-            <label>
-              <span>Font Size</span>
-              <span>{settings.overlay.fontSize}px</span>
-            </label>
-            <input
-              type="range"
-              min="12"
-              max="32"
-              value={settings.overlay.fontSize}
-              onChange={(e) =>
-                updateSetting({
-                  overlay: { ...settings.overlay, fontSize: +e.target.value },
-                })
-              }
-            />
-          </div>
-          <div className="slider-group">
-            <label>
-              <span>Opacity</span>
-              <span>{Math.round(settings.overlay.opacity * 100)}%</span>
-            </label>
-            <input
-              type="range"
-              min="30"
-              max="100"
-              value={settings.overlay.opacity * 100}
-              onChange={(e) =>
-                updateSetting({
-                  overlay: { ...settings.overlay, opacity: +e.target.value / 100 },
-                })
-              }
-            />
-          </div>
-          <div className="slider-group">
-            <label>
-              <span>Position Y</span>
-              <span>{settings.overlay.y}%</span>
-            </label>
-            <input
-              type="range"
-              min="5"
-              max="95"
-              value={settings.overlay.y}
-              onChange={(e) =>
-                updateSetting({
-                  overlay: { ...settings.overlay, y: +e.target.value },
-                })
-              }
-            />
-          </div>
-          <div className="color-row">
-            <label>Text Color</label>
-            <input
-              type="color"
-              value={settings.overlay.color}
-              onChange={(e) =>
-                updateSetting({
-                  overlay: { ...settings.overlay, color: e.target.value },
-                })
-              }
-            />
-            <label>Background</label>
-            <input
-              type="color"
-              value={settings.overlay.backgroundColor}
-              onChange={(e) =>
-                updateSetting({
-                  overlay: { ...settings.overlay, backgroundColor: e.target.value },
-                })
-              }
-            />
-          </div>
-        </div>
-
         {/* Cost Dashboard */}
         <div className="card full-width">
           <h2>Cost Dashboard</h2>
           <div className="cost-grid">
             <div className="cost-stat">
-              <div className="value">
-                ${(sessionStats?.estimatedCost ?? 0).toFixed(4)}
-              </div>
+              <div className="value">${(sessionStats?.estimatedCost ?? 0).toFixed(4)}</div>
               <div className="label">This Session</div>
             </div>
             <div className="cost-stat">
@@ -295,9 +169,7 @@ export default function App() {
               <div className="label">Total Spent</div>
             </div>
             <div className="cost-stat">
-              <div className="value">
-                ${(settings.totalBudget - settings.totalSpent).toFixed(2)}
-              </div>
+              <div className="value">${(settings.totalBudget - settings.totalSpent).toFixed(2)}</div>
               <div className="label">Budget Left</div>
             </div>
           </div>
@@ -309,10 +181,7 @@ export default function App() {
             <span>${settings.totalBudget.toFixed(2)} budget</span>
           </div>
           {sessionStats && (
-            <div
-              className="cost-grid"
-              style={{ marginTop: 12 }}
-            >
+            <div className="cost-grid" style={{ marginTop: 12 }}>
               <div className="cost-stat">
                 <div className="value">{sessionStats.apiCalls}</div>
                 <div className="label">API Calls</div>
@@ -330,7 +199,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Footer with Start/Stop */}
       <div className="footer">
         <button
           className="btn btn-secondary btn-calibrate"
@@ -338,6 +206,13 @@ export default function App() {
           disabled={isRunning}
         >
           Calibrate HUD
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={handleTestCapture}
+          style={{ marginLeft: 8 }}
+        >
+          Test Capture
         </button>
         {isRunning ? (
           <button className="btn btn-primary btn-start" onClick={handleStop}>

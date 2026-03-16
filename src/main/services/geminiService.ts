@@ -1,10 +1,13 @@
-import { GoogleGenerativeAI, GenerativeModel, Content } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerativeModel, Content, Part } from '@google/generative-ai';
 import { GEMINI_MODEL, MAX_HISTORY_LENGTH } from '../../shared/constants';
 import { CoachingTip } from '../../shared/types';
 import { recordApiCall } from './costTrackingService';
 
 let model: GenerativeModel | null = null;
 let conversationHistory: Content[] = [];
+
+// Session death log — tracks each death this session for pattern detection
+const sessionDeathLog: string[] = [];
 
 const SYSTEM_PROMPT = `You are an elite Valorant tactical coach providing real-time callouts during a competitive match. You are watching my screen.
 
@@ -29,10 +32,26 @@ CONTEXT YOU CAN READ:
 - Economy (buy phase): credits
 - Spike indicator: planted or carried`;
 
-const DEATH_PROMPT = `I just died. Based on this screenshot:
-1. What likely killed me (one short sentence)
-2. What I should do differently next time (one short sentence)
-Keep both under 15 words each.`;
+function buildDeathPrompt(): string {
+  const hasHistory = sessionDeathLog.length > 0;
+
+  const historySection = hasHistory
+    ? `\n\nMY DEATHS THIS SESSION:\n${sessionDeathLog.map((d, i) => `Death ${i + 1}: ${d}`).join('\n')}\n`
+    : '';
+
+  const patternInstruction = hasHistory
+    ? `\n4. Am I repeating a mistake pattern across my deaths? If yes, name it in one sentence.`
+    : '';
+
+  return `I just died. You are seeing my last ${sessionDeathLog.length > 0 ? 'several' : '5'} screenshots before death in chronological order (oldest first, most recent last).${historySection}
+
+Analyze clearly and specifically:
+1. What killed me and from where (one sentence, max 20 words)
+2. What tactical mistake led to this death (one sentence, max 20 words)
+3. What I should do differently next time (one sentence, max 20 words)${patternInstruction}
+
+Be direct and specific. Use Valorant terminology. No filler words.`;
+}
 
 export function initializeGemini(apiKey: string): void {
   const genAI = new GoogleGenerativeAI(apiKey);
@@ -69,34 +88,32 @@ export async function analyzeScreenshot(
           data: base64Image,
         },
       },
-      { text: isDeath ? DEATH_PROMPT : 'What should I do right now?' },
+      { text: isDeath ? buildDeathPrompt() : 'What should I do right now?' },
     ],
   };
 
-  // Build messages with history for context
   const messages: Content[] = [...conversationHistory, userContent];
-
   const result = await model.generateContent({ contents: messages });
   const response = result.response;
   const text = response.text().trim();
 
-  // Track cost
   const usage = response.usageMetadata;
   if (usage) {
     recordApiCall(usage.promptTokenCount ?? 0, usage.candidatesTokenCount ?? 0);
   }
 
-  // Update conversation history (sliding window)
   conversationHistory.push(userContent);
-  conversationHistory.push({
-    role: 'model',
-    parts: [{ text }],
-  });
+  conversationHistory.push({ role: 'model', parts: [{ text }] });
 
-  // Keep only last N exchanges (each exchange = 2 entries: user + model)
   while (conversationHistory.length > MAX_HISTORY_LENGTH * 2) {
     conversationHistory.shift();
     conversationHistory.shift();
+  }
+
+  if (isDeath) {
+    // Save first line as session death summary
+    const summary = text.split('\n')[0].replace(/^\d+\.\s*/, '').slice(0, 120);
+    sessionDeathLog.push(summary);
   }
 
   return {
@@ -105,6 +122,51 @@ export async function analyzeScreenshot(
     timestamp: Date.now(),
     isDeathAnalysis: isDeath,
   };
+}
+
+// Analyze death using rolling buffer — sends multiple screenshots at once
+export async function analyzeDeathWithBuffer(screenshots: string[]): Promise<CoachingTip> {
+  if (!model) throw new Error('Gemini not initialized. Set API key first.');
+
+  const imageParts: Part[] = screenshots.map((base64) => ({
+    inlineData: {
+      mimeType: 'image/jpeg' as const,
+      data: base64,
+    },
+  }));
+
+  const userContent: Content = {
+    role: 'user',
+    parts: [
+      ...imageParts,
+      { text: buildDeathPrompt() },
+    ],
+  };
+
+  const result = await model.generateContent({ contents: [userContent] });
+  const response = result.response;
+  const text = response.text().trim();
+
+  const usage = response.usageMetadata;
+  if (usage) {
+    recordApiCall(usage.promptTokenCount ?? 0, usage.candidatesTokenCount ?? 0);
+  }
+
+  // Save first line as session death summary
+  const summary = text.split('\n')[0].replace(/^\d+\.\s*/, '').slice(0, 120);
+  sessionDeathLog.push(summary);
+
+  return {
+    id: `tip-${Date.now()}`,
+    text,
+    timestamp: Date.now(),
+    isDeathAnalysis: true,
+  };
+}
+
+export function clearSessionContext(): void {
+  sessionDeathLog.length = 0;
+  conversationHistory = [];
 }
 
 export function clearHistory(): void {

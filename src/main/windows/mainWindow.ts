@@ -14,6 +14,7 @@ export function createMainWindow(): BrowserWindow {
       preload: path.join(__dirname, '../../preload/preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
     show: false,
   });

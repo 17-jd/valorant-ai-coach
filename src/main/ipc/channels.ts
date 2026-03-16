@@ -26,4 +26,7 @@ export const IPC_CHANNELS = {
 
   // Test connection
   TEST_API_KEY: 'api:test',
+
+  // Debug
+  TEST_CAPTURE: 'debug:test-capture',
 } as const;

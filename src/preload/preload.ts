@@ -18,6 +18,9 @@ const api = {
   // Calibration
   startCalibration: () => ipcRenderer.invoke(IPC_CHANNELS.CALIBRATE_START),
 
+  // Debug
+  testCapture: () => ipcRenderer.invoke(IPC_CHANNELS.TEST_CAPTURE),
+
   // Event listeners
   onCoachingTip: (callback: (tip: unknown) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, tip: unknown) => callback(tip);

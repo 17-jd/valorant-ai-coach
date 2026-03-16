@@ -22,3 +22,7 @@ export const DEATH_SIGNALS_REQUIRED = 2;
 
 // Conversation history
 export const MAX_HISTORY_LENGTH = 3;
+
+// Rolling screenshot buffer (GeForce-style replay)
+export const BUFFER_SIZE = 5;                    // Keep last 5 screenshots
+export const BUFFER_CAPTURE_INTERVAL_MS = 2000;  // Capture every 2s for buffer
