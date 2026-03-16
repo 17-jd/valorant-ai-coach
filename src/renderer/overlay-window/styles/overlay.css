@@ -1,0 +1,92 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  pointer-events: none;
+}
+
+.overlay-container {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.coaching-tip {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 600px;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-family: 'Segoe UI', -apple-system, sans-serif;
+  line-height: 1.5;
+  text-align: center;
+  pointer-events: none;
+  white-space: pre-line;
+  animation: fadeInOut 8s ease-in-out;
+  opacity: 0;
+}
+
+.coaching-tip.visible {
+  opacity: 1;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.coaching-tip.fading {
+  animation: fadeOut 0.5s ease-in forwards;
+}
+
+.coaching-tip.death-tip {
+  border-left: 4px solid #ff4655;
+}
+
+/* Separate window mode */
+.separate-mode {
+  background: #0f1923 !important;
+  pointer-events: auto;
+}
+
+.separate-mode .coaching-tip {
+  position: relative;
+  left: auto;
+  transform: none;
+  margin: 10px;
+  max-width: 100%;
+}
+
+.separate-mode .tip-history {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+.tip-history .coaching-tip {
+  opacity: 1;
+  animation: none;
+}
+
+.tip-history .coaching-tip.old {
+  opacity: 0.5;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}

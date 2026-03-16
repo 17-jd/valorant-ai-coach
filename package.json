@@ -1,0 +1,64 @@
+{
+  "name": "valorant-ai-coach",
+  "version": "1.0.0",
+  "description": "AI-powered real-time Valorant coach using Gemini API",
+  "main": "dist/main/main/index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:main\" \"npm run dev:main-window\" \"npm run dev:overlay-window\"",
+    "dev:main": "tsc && wait-on http://localhost:5173 http://localhost:5174 && NODE_ENV=development electron .",
+    "dev:main-window": "vite --config vite.main-window.config.ts",
+    "dev:overlay-window": "vite --config vite.overlay-window.config.ts",
+    "build:main": "tsc",
+    "build:renderer": "vite build --config vite.main-window.config.ts && vite build --config vite.overlay-window.config.ts",
+    "build": "npm run build:main && npm run build:renderer",
+    "start": "npm run build && electron .",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.valorant-ai-coach.app",
+    "productName": "Valorant AI Coach",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icons/icon.ico"
+    },
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/screenshot-desktop/**/*"
+    ]
+  },
+  "keywords": [
+    "valorant",
+    "ai",
+    "coach",
+    "gemini"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "screenshot-desktop": "^1.12.7",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^9.2.1",
+    "electron": "^41.0.2",
+    "electron-builder": "^26.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "wait-on": "^9.0.4"
+  }
+}
